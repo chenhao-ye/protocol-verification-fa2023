@@ -5,7 +5,8 @@
 ghost predicate IsPrimeSpec(candidate:nat)
 {
   // FIXME: fill in here (solution: 3 lines)
-   false // Replace me
+  && candidate > 1
+  && !(exists m: nat | m > 1 && m != candidate :: candidate % m == 0)
   // END EDIT
 }
 
@@ -23,6 +24,9 @@ lemma ConstantObligations()
 {
   // FIXME: fill in here (solution: 3 lines)
   // Add assertions here to prove the composite numbers have divisors.
+  assert 4 % 2 == 0;
+  assert 6 % 3 == 0;
+  assert 9 % 3 == 0;
   // END EDIT
 }
 
@@ -31,6 +35,7 @@ lemma CompositeIsntPrime(p: nat)
   ensures !IsPrimeSpec(p*66)
 {
   // FIXME: fill in here (solution: 1 line)
+  assert (p * 66) % 66 == 0;
   // END EDIT
 }
 
@@ -45,13 +50,13 @@ lemma CompositeIsntPrime(p: nat)
 // A recursive implementation of IsPrime. The function HasDivisorBelow should
 // check if n is divisible by something between 1 and limit (including limit,
 // not including 1).
-function
-  HasDivisorBelow(n:nat, limit:nat): bool
+function HasDivisorBelow(n: nat, limit: nat): bool
   requires limit >= 1
 {
   // FIXME: fill in here (solution: 3 lines)
-   if limit == 1 then false else
-   false // Replace with an appropriate definition
+  if limit == 1 then false
+  else if n % limit == 0 then true
+  else HasDivisorBelow(n, limit - 1)
   // END EDIT
 }
 
@@ -72,10 +77,21 @@ function IsPrime(n: nat): bool {
 lemma {:induction false} HasDivisorBelow_ok(n: nat, limit: nat)
   requires 1 <= limit
   // FIXME: fill in here (solution: 3 lines)
-   ensures true
+  ensures (exists x: nat | 1 < x <= limit :: n % x == 0) <==> HasDivisorBelow(n, limit)
+  decreases limit
   // END EDIT
 {
   // FIXME: fill in here (solution: 5 lines)
+  if limit == 1 {
+    return;
+  }
+  HasDivisorBelow_ok(n, limit - 1);
+  if HasDivisorBelow(n, limit - 1) {
+    assert exists x: nat | 1 < x <= limit - 1 :: n % x == 0;
+    assert exists x: nat | 1 < x <= limit :: n % x == 0;
+  } else {
+    assert (n / limit * limit == n) == HasDivisorBelow(n, limit);
+  }
   // END EDIT
 }
 
