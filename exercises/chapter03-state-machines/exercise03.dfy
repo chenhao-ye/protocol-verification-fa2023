@@ -17,9 +17,16 @@
 // simultaneously.
 
 // FIXME: fill in here (solution: 13 lines)
-datatype Variables = Variables() {
+datatype ServerState = LockAvailable | HeldByClient(clientIndex: nat)
+datatype ClientState = NoLock | HoldLock
+datatype Variables = Variables(serverState: ServerState, clientStates: seq<ClientState>) {
   ghost predicate WellFormed() {
-    true
+    match serverState
+    case HeldByClient(clientIndex) =>
+      && (0 <= clientIndex < |clientStates|
+          && clientStates[clientIndex].HoldLock?)
+    case LockAvailable? =>
+      forall i | 0 <= i < |clientStates| :: clientStates[i].NoLock?
   }
 }
 // END EDIT
@@ -28,8 +35,9 @@ datatype Variables = Variables() {
 ghost predicate Init(v:Variables) {
   && v.WellFormed()
      // FIXME: fill in here (solution: 3 lines)
-                                         && true  // Replace me
-     // END EDIT
+  && v.serverState == LockAvailable
+  && forall i | 0 <= i < |v.clientStates| :: v.clientStates[i].NoLock?
+                                             // END EDIT
 }
 // FIXME: fill in here (solution: 23 lines)
 // END EDIT
@@ -37,14 +45,30 @@ ghost predicate Init(v:Variables) {
 // that gets there-exist-ed once.
 datatype Step =
     // FIXME: fill in here (solution: 2 lines)
-   | SomeStep(somearg: int)   // Replace me
+  | AcquireLock(clientIndex: nat)
+  | ReleaseLock(clientIndex: nat)
     // END EDIT
 
 ghost predicate NextStep(v:Variables, v':Variables, step: Step) {
   match step
   // FIXME: fill in here (solution: 2 lines)
-   case SomeStep(somearg) => false  // Replace me
-  // END EDIT
+  case AcquireLock(clientIndex) =>
+    && v.WellFormed()
+    && 0 <= clientIndex < |v.clientStates|
+    && v.serverState.LockAvailable?
+    && v' == v.(
+             serverState := HeldByClient(clientIndex),
+             clientStates := v.clientStates[clientIndex := HoldLock])
+  case ReleaseLock(clientIndex) =>
+    && v.WellFormed()
+    && 0 <= clientIndex < |v.clientStates|
+    && v.serverState.HeldByClient?
+    && v.serverState.clientIndex == clientIndex
+    && v' == v.(
+             serverState := LockAvailable,
+             clientStates := v.clientStates[clientIndex := NoLock]
+             )
+       // END EDIT
 }
 
 lemma NextStepDeterministicGivenStep(v:Variables, v':Variables, step: Step)
@@ -61,8 +85,15 @@ ghost predicate Next(v:Variables, v':Variables) {
 // idea in terms of the Variables you have defined.
 ghost predicate Safety(v:Variables) {
   // FIXME: fill in here (solution: 10 lines)
-        false  // Replace me
-  // END EDIT
+  match v.serverState
+  case HeldByClient(clientIndex) =>
+    && 0 <= clientIndex < |v.clientStates|
+    && v.clientStates[clientIndex].HoldLock?
+    && forall i | 0 <= i < |v.clientStates|
+         :: v.clientStates[i].HoldLock? ==> i == clientIndex
+  case LockAvailable? => forall i | 0 <= i < |v.clientStates|
+    :: v.clientStates[i].NoLock?
+       // END EDIT
 }
 
 
@@ -74,8 +105,9 @@ ghost predicate ClientHoldsLock(v: Variables, clientIndex: nat)
   requires v.WellFormed()
 {
   // FIXME: fill in here (solution: 1 line)
-   false  // Replace me
-  // END EDIT
+  && 0 <= clientIndex < |v.clientStates|
+  && v.clientStates[clientIndex].HoldLock?
+     // END EDIT
 }
 
 // Show a behavior that the system can release a lock from clientA and deliver
@@ -92,5 +124,19 @@ lemma PseudoLiveness(clientA:nat, clientB:nat) returns (behavior:seq<Variables>)
   ensures ClientHoldsLock(behavior[|behavior|-1], clientB) // eventually clientB acquires lock
 {
   // FIXME: fill in here (solution: 9 lines)
+  var v1 := Variables(serverState := LockAvailable,
+                      clientStates := [NoLock, NoLock, NoLock]);
+  var v2 := Variables(serverState := HeldByClient(clientA),
+                      clientStates := [NoLock, NoLock, HoldLock]);
+  assert(NextStep(v1, v2, AcquireLock(clientA)));
+
+  var v3 := v1;
+  assert(NextStep(v2, v3, ReleaseLock(clientA)));
+
+  var v4 := Variables(serverState := HeldByClient(clientB),
+                      clientStates := [HoldLock, NoLock, NoLock]);
+  assert(NextStep(v3, v4, AcquireLock(clientB)));
+
+  behavior := [v1, v2, v3, v4];
   // END EDIT
 }

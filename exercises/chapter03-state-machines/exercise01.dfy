@@ -8,20 +8,24 @@ datatype Variables = Variables(capacity: int, numCokes:int)
 
 ghost predicate Init(v:Variables) {
   // FIXME: fill in here (solution: 2 lines)
-      true // Replace me
+  && v.numCokes == v.capacity
+  && v.capacity == 7
   // END EDIT
 }
 
 ghost predicate Purchase(v:Variables, v':Variables) {
   // FIXME: fill in here (solution: 2 lines)
-      true // Replace me
+  && v.numCokes > 0
+  && v' == v.(numCokes := v.numCokes - 1)
   // END EDIT
 }
 
 ghost predicate Restock(v:Variables, v':Variables, numRestock:int)
 {
   // FIXME: fill in here (solution: 3 lines)
-      true // Replace me
+  && numRestock >= 0
+  && v.numCokes + numRestock <= v.capacity
+  && v' == v.(numCokes := v.numCokes + numRestock)
   // END EDIT
 }
 
