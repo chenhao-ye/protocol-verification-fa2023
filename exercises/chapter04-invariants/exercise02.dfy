@@ -10,10 +10,37 @@
 include "ch03exercise03.dfy"
 
 // FIXME: fill in here (solution: 11 lines)
- ghost predicate Inv(v:Variables) {
-   true // probably not strong enough :)
- }
+ghost predicate Inv(v:Variables) {
+  && (forall i: nat, j: nat | 0 <= i < |v.clients| && 0 <= j < |v.clients|
+        :: v.clients[i].Acquired? && v.clients[j].Acquired? ==> i == j)
+  && (forall i: nat | 0 <= i < |v.clients|
+        :: v.clients[i].Acquired? ==> v.server.Client? && v.server.id == i)
+}
 // END EDIT
+
+lemma InvInit(v: Variables)
+  requires Init(v)
+  ensures Inv(v)
+{}
+
+lemma InvInductive(v: Variables, v': Variables)
+  requires Inv(v) && Next(v, v')
+  ensures Inv(v')
+{
+  var step :| NextStep(v, v', step);
+  match step {
+    case AcquireStep(id) => {
+      assert v'.server.Client? && v'.server.id == id;
+      return;
+    }
+    case ReleaseStep(id) => { return; }
+  }
+}
+
+lemma InvSafe(v: Variables)
+  requires Inv(v)
+  ensures Safety(v)
+{}
 
 // Here's your obligation. Probably easiest to break this up into three
 // lemmas, each P==>Q becomes requires P ensures Q.
@@ -23,5 +50,14 @@ lemma SafetyTheorem(v:Variables, v':Variables)
   ensures Inv(v) ==> Safety(v)
 {
   // FIXME: fill in here (solution: 10 lines)
+  if Init(v) {
+    InvInit(v);
+  }
+  if Inv(v) && Next(v, v') {
+    InvInductive(v, v');
+  }
+  if Inv(v) {
+    InvSafe(v);
+  }
   // END EDIT
 }
