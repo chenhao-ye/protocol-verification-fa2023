@@ -49,7 +49,9 @@ module Types {
   // we're trying to avoid getting fancy with the Dafny module system.)
   datatype Message =
       // FIXME: fill in here (solution: 3 lines)
-       ReplaceMe()
+    | MsgReqVote
+    | MsgVote(p: HostId, vote: Vote)
+    | MsgDecison(d: Decision)
       // END EDIT
 
   // A MessageOps is a "binding variable" used to connect a Host's Next step
@@ -75,14 +77,15 @@ module CoordinatorHost {
 
   datatype Variables = Variables(
     c: Constants,
-    decision: Option<Decision>
+    decision: Option<Decision>,
     // FIXME: fill in here (solution: 1 line)
+    votes: seq<Option<Vote>>
     // END EDIT
   )
   {
     ghost predicate WF() {
       // FIXME: fill in here (solution: 1 line)
-      true
+      |votes| == c.participantCount
       // END EDIT
     }
 
@@ -95,8 +98,10 @@ module CoordinatorHost {
   ghost predicate Init(v: Variables)
   {
     // FIXME: fill in here (solution: 5 lines)
-        true // replace me
-    // END EDIT
+    && v.WF()
+    && v.decision.None?
+    && forall i: HostId | i < |v.votes| :: v.votes[i].None?
+                                           // END EDIT
   }
 
   // Protocol steps. Define an action predicate for each step of the protocol
@@ -104,12 +109,50 @@ module CoordinatorHost {
   // Hint: it's probably easiest to separate the receipt and recording of
   // incoming votes from detecting that all have arrived and making a decision.
   // FIXME: fill in here (solution: 46 lines)
+  ghost predicate ReqVote(v: Variables, v': Variables, msgOps: MessageOps)
+  {
+    && msgOps.recv.None?
+    && msgOps.send.Some?
+    && msgOps.send.value.MsgReqVote?
+    && v.decision.None? // no point to request vote after the decision made
+    && v == v'
+  }
+
+  ghost predicate RecvVote(v: Variables, v': Variables, msgOps: MessageOps)
+  {
+    && msgOps.recv.Some?
+    && msgOps.send.None?
+    && msgOps.recv.value.MsgVote?
+    && var p: HostId := msgOps.recv.value.p;
+    && var vote := msgOps.recv.value.vote;
+    && p < |v.votes|
+    && v.votes[p] == None
+    && v' == v.(votes := v.votes[p := Some(vote)])
+  }
+
+  ghost predicate DecideAndSend(v: Variables, v': Variables, msgOps: MessageOps) {
+    && msgOps.recv.None?
+    && msgOps.send.Some?
+    && v.decision.None?
+    && (forall i: HostId | i < |v.votes| :: v.votes[i].Some?)
+    && ((forall i: HostId | i < |v.votes| :: v.votes[i].value == Yes)
+        ==> (&& v' == v.(decision := Some(Commit))
+             && msgOps.send.value == MsgDecison(Commit))
+       )
+    && ((exists i: HostId | i < |v.votes| :: v.votes[i].value == No)
+        ==> (&& v' == v.(decision := Some(Abort))
+             && msgOps.send.value == MsgDecison(Abort))
+       )
+  }
+
   // END EDIT
 
   // JayNF
   datatype Step =
       // FIXME: fill in here (solution: 3 lines)
-       ReplaceMeWithYourJayNFSteps()
+    | ReqVoteStep
+    | RecvVoteStep
+    | DecideAndSendStep
       // END EDIT
 
   // msgOps is a "binding variable" -- the host and the network have to agree
@@ -120,7 +163,9 @@ module CoordinatorHost {
   {
     match step
     // FIXME: fill in here (solution: 3 lines)
-     case ReplaceMeWithYourJayNFSteps => true
+    case ReqVoteStep => ReqVote(v, v', msgOps)
+    case RecvVoteStep => RecvVote(v, v', msgOps)
+    case DecideAndSendStep => DecideAndSend(v, v', msgOps)
     // END EDIT
   }
 
@@ -147,7 +192,7 @@ module ParticipantHost {
   {
     ghost predicate WF() {
       // FIXME: fill in here (solution: 1 line)
-       true
+      true
       // END EDIT
     }
 
@@ -160,8 +205,9 @@ module ParticipantHost {
   ghost predicate Init(v: Variables)
   {
     // FIXME: fill in here (solution: 1 line)
-     true // replace me
-    // END EDIT
+    && v.WF()
+    && v.decision == None
+       // END EDIT
   }
 
   // Protocol steps. Define an action predicate for each step of the protocol
@@ -169,17 +215,39 @@ module ParticipantHost {
   // FIXME: fill in here (solution: 20 lines)
   // END EDIT
 
+  ghost predicate CastVote(v: Variables, v': Variables, msgOps: MessageOps)
+  {
+    && msgOps.recv.Some?
+    && msgOps.send.Some?
+    && msgOps.recv.value.MsgReqVote?
+    && msgOps.send.value.MsgVote?
+    && msgOps.send.value.p == v.c.hostId
+    && msgOps.send.value.vote == v.c.preference
+    && v == v'
+  }
+
+  ghost predicate AcceptDecision(v: Variables, v': Variables, msgOps: MessageOps)
+  {
+    && msgOps.recv.Some?
+    && msgOps.send.None?
+    && msgOps.recv.value.MsgDecison?
+    && v.decision == None
+    && v' == v.(decision := Some(msgOps.recv.value.d))
+  }
+
   // JayNF
   datatype Step =
       // FIXME: fill in here (solution: 2 lines)
-       ReplaceMeWithYourJayNFSteps()
+    | CastVoteStep
+    | AcceptDecisionStep
       // END EDIT
 
   ghost predicate NextStep(v: Variables, v': Variables, step: Step, msgOps: MessageOps)
   {
     match step
     // FIXME: fill in here (solution: 2 lines)
-     case ReplaceMeWithYourJayNFSteps => true
+    case CastVoteStep => CastVote(v, v', msgOps)
+    case AcceptDecisionStep => AcceptDecision(v, v', msgOps)
     // END EDIT
   }
 
@@ -390,6 +458,67 @@ module DistributedSystem {
               :: GetDecisionForHost(Last(behavior).hosts[hostid]) == Some(Commit)
   {
     // FIXME: fill in here (solution: 60 lines)
+    var v0 := Variables(hosts := [
+                          Host.ParticipantVariables(
+                            participant := ParticipantHost.Variables(
+                              c := ParticipantHost.Constants(hostId := 0,
+                                                             preference := Yes),
+                              decision := None)),
+                          Host.CoordinatorVariables(
+                            coordinator := CoordinatorHost.Variables(
+                              c := CoordinatorHost.Constants(participantCount := 1),
+                              decision := None,
+                              votes := [None]))
+                        ],
+                        network := Network.Variables({}));
+    var v1 := v0.(
+    network := Network.Variables(
+      sentMsgs := {MsgReqVote}));
+    assert CoordinatorHost.NextStep(v0.hosts[1].coordinator,
+                                    v1.hosts[1].coordinator,
+                                    CoordinatorHost.ReqVoteStep,
+                                    MessageOps(recv := None, send := Some(MsgReqVote)));
+    assert NextStep(v0, v1, HostActionStep(1, MessageOps(recv := None, send := Some(MsgReqVote))));
+
+    var v2 := v1.(
+    network := Network.Variables(
+      sentMsgs := {MsgReqVote, MsgVote(0, Yes)}));
+    assert ParticipantHost.NextStep(v1.hosts[0].participant,
+                                    v2.hosts[0].participant,
+                                    ParticipantHost.CastVoteStep,
+                                    MessageOps(recv := Some(MsgReqVote), send := Some(MsgVote(0, Yes))));
+    assert NextStep(v1, v2, HostActionStep(0, MessageOps(recv := Some(MsgReqVote), send := Some(MsgVote(0, Yes)))));
+
+    var v3 := v2.(
+    hosts := v2.hosts[1 := v2.hosts[1].(coordinator := v2.hosts[1].coordinator.(votes := [Some(Yes)]))]
+    );
+    assert CoordinatorHost.NextStep(v2.hosts[1].coordinator,
+                                    v3.hosts[1].coordinator,
+                                    CoordinatorHost.RecvVoteStep,
+                                    MessageOps(recv := Some(MsgVote(0, Yes)), send := None));
+    assert NextStep(v2, v3, HostActionStep(1, MessageOps(recv := Some(MsgVote(0, Yes)), send := None)));
+
+    var v4 := v3.(
+    hosts := v3.hosts[1 := v3.hosts[1].(coordinator := v3.hosts[1].coordinator.(decision := Some(Commit)))],
+    network := Network.Variables(
+      sentMsgs := {MsgReqVote, MsgVote(0, Yes), MsgDecison(Commit)})
+    );
+    assert CoordinatorHost.NextStep(v3.hosts[1].coordinator,
+                                    v4.hosts[1].coordinator,
+                                    CoordinatorHost.DecideAndSendStep,
+                                    MessageOps(recv := None, send := Some(MsgDecison(Commit))));
+    assert NextStep(v3, v4, HostActionStep(1, MessageOps(recv := None, send := Some(MsgDecison(Commit)))));
+
+    var v5 := v4.(
+    hosts := v4.hosts[0 := v4.hosts[0].(participant := v4.hosts[0].participant.(decision := Some(Commit)))]
+    );
+    assert ParticipantHost.NextStep(v4.hosts[0].participant,
+                                    v5.hosts[0].participant,
+                                    ParticipantHost.AcceptDecisionStep,
+                                    MessageOps(recv := Some(MsgDecison(Commit)), send := None));
+    assert NextStep(v4, v5, HostActionStep(0, MessageOps(recv := Some(MsgDecison(Commit)), send := None)));
+
+    behavior := [v0, v1, v2, v3, v4, v5];
     // END EDIT
   }
 }
