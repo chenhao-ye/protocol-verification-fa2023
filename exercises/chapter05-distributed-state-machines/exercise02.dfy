@@ -37,6 +37,11 @@ module Obligations {
     hostid < |v.hosts|-1
   }
 
+  ghost predicate ValidCoordinatorId(v: Variables, hostid: HostId)
+  {
+    hostid == |v.hosts|-1
+  }
+
   ghost function ParticipantVars(v: Variables, hostid: HostId) : ParticipantHost.Variables
     requires v.WF()
     requires ValidParticipantId(v, hostid)
@@ -53,13 +58,18 @@ module Obligations {
   {
     // All hosts that reach a decision reach the same one
     // FIXME: fill in here (solution: 4 lines)
-    forall i: HostId, j : HostId |
-      && ValidParticipantId(v, i)
-      && ValidParticipantId(v, j)
-      && ParticipantVars(v, i).decision.Some?
-      && ParticipantVars(v, j).decision.Some?
-      :: ParticipantVars(v, i).decision.value == ParticipantVars(v, j).decision.value
-         // END EDIT
+    && (forall i: HostId, j: HostId |
+          && ValidParticipantId(v, i)
+          && ValidParticipantId(v, j)
+          && ParticipantVars(v, i).decision.Some?
+          && ParticipantVars(v, j).decision.Some?
+          :: ParticipantVars(v, i).decision.value == ParticipantVars(v, j).decision.value)
+    && (forall i: HostId |
+          && ValidParticipantId(v, i)
+          && ParticipantVars(v, i).decision.Some?
+          && CoordinatorVars(v).decision.Some?
+          :: ParticipantVars(v, i).decision.value == CoordinatorVars(v).decision.value)
+       // END EDIT
   }
 
   // AC2 is sort of a history predicate; we're going to ignore it.
@@ -69,12 +79,12 @@ module Obligations {
     requires v.WF()
   {
     // FIXME: fill in here (solution: 6 lines)
-    (exists i: HostId | ValidParticipantId(v, i) :: ParticipantVars(v, i).c.preference == No)
-    <==> (
-      && (CoordinatorVars(v).decision.Some? ==> CoordinatorVars(v).decision.value == Abort)
-      && forall i: HostId | ValidParticipantId(v, i)
-           :: (ParticipantVars(v, i).decision.Some? ==> ParticipantVars(v, i).decision.value == Abort)
-    )
+    (exists i: HostId :: ValidParticipantId(v, i) && ParticipantVars(v, i).c.preference == No)
+    ==> (
+        && (CoordinatorVars(v).decision.Some? ==> (CoordinatorVars(v).decision.value == Abort))
+        && forall i: HostId | ValidParticipantId(v, i)
+             :: (ParticipantVars(v, i).decision.Some? ==> (ParticipantVars(v, i).decision.value == Abort))
+      )
     // END EDIT
   }
 
@@ -84,11 +94,11 @@ module Obligations {
   {
     // FIXME: fill in here (solution: 5 lines)
     (forall i: HostId | ValidParticipantId(v, i) :: ParticipantVars(v, i).c.preference == Yes)
-    <==> (
-      && (CoordinatorVars(v).decision.Some? ==> CoordinatorVars(v).decision.value == Commit)
-      && forall i: HostId | ValidParticipantId(v, i)
-           :: (ParticipantVars(v, i).decision.Some? ==> ParticipantVars(v, i).decision.value == Commit)
-    )
+    ==> (
+        && (CoordinatorVars(v).decision.Some? ==> (CoordinatorVars(v).decision.value == Commit))
+        && forall i: HostId | ValidParticipantId(v, i)
+             :: (ParticipantVars(v, i).decision.Some? ==> (ParticipantVars(v, i).decision.value == Commit))
+      )
     // END EDIT
   }
 

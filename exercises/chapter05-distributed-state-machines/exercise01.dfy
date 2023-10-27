@@ -85,7 +85,7 @@ module CoordinatorHost {
   {
     ghost predicate WF() {
       // FIXME: fill in here (solution: 1 line)
-      |votes| == c.participantCount
+      |votes| == c.participantCount && c.participantCount > 0
       // END EDIT
     }
 
@@ -139,7 +139,7 @@ module CoordinatorHost {
         ==> (&& v' == v.(decision := Some(Commit))
              && msgOps.send.value == MsgDecison(Commit))
        )
-    && ((exists i: HostId | i < |v.votes| :: v.votes[i].value == No)
+    && ((exists i: HostId :: i < |v.votes| && v.votes[i].value == No)
         ==> (&& v' == v.(decision := Some(Abort))
              && msgOps.send.value == MsgDecison(Abort))
        )
