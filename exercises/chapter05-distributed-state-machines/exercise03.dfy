@@ -39,29 +39,6 @@ module TwoPCInvariantProof {
         :: ParticipantVars(v, i).decision.None?
   }
 
-  // ghost predicate VoteAgreeWithPreference(v: Variables)
-  //   requires v.WF()
-  // {
-  //   forall i: HostId | ValidParticipantId(v, i)
-  //     :: && var pref := ParticipantVars(v, i).c.preference;
-  //        && var vote := CoordinatorVars(v).votes[i];
-  //        && (vote.Some? ==> (vote.value == pref))
-  // }
-
-  // ghost predicate VoteMsgAgreeWithPreference(v: Variables)
-  //   requires v.WF()
-  // {
-  //   forall i: HostId, m: Message |
-  //     && ValidParticipantId(v, i)
-  //     && m in v.network.sentMsgs
-  //     && m.MsgVote?
-  //     && m.p == i
-  //     :: && var pref := ParticipantVars(v, i).c.preference;
-  //        && var vote := CoordinatorVars(v).votes[i];
-  //        && m.vote == pref
-  //        && (vote.Some? ==> (vote.value == pref))
-  // }
-
   ghost predicate RecvVoteImpliesVoteMsgSent(v: Variables)
     requires v.WF()
   {
